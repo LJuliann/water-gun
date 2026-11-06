@@ -1,4 +1,5 @@
 # Compilation CMake / Pico
+/.tools/
 /build/
 /build-*/
 /cmake-build-*/

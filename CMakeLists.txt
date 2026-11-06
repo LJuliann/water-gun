@@ -16,6 +16,14 @@ cmake_minimum_required(VERSION 3.21)
 # Configuration initiale pour le RP2350
 set(PICO_BOARD pico2 CACHE STRING "Board type")
 
+# Utiliser le SDK local si aucun chemin explicite n'est fourni.
+if(NOT PICO_SDK_PATH AND NOT DEFINED ENV{PICO_SDK_PATH}
+   AND EXISTS "${CMAKE_CURRENT_LIST_DIR}/.tools/pico-sdk/pico_sdk_init.cmake")
+    set(PICO_SDK_PATH "${CMAKE_CURRENT_LIST_DIR}/.tools/pico-sdk")
+endif()
+
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 include(pico_sdk_import.cmake)
 
 project(
