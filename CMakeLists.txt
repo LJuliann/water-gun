@@ -8,7 +8,7 @@ set(sdkVersion 2.3.1)
 set(toolchainVersion 15_2_Rel1)
 set(picotoolVersion 2.3.1)
 set(picoVscode ${USERHOME}/.pico-sdk/cmake/pico-vscode.cmake)
-if (EXISTS ${picoVscode})
+if (EXISTS ${picoVscode} AND NOT PICO_SDK_PATH AND NOT DEFINED ENV{PICO_SDK_PATH})
     include(${picoVscode})
 endif()
 # ====================================================================================
@@ -40,6 +40,11 @@ water_gun.c
 
 target_link_libraries(water_gun
 pico_stdlib
+hardware_pwm
 )
+
+# UART0 sur GP0/GP1 pour le moniteur série Wokwi.
+pico_enable_stdio_usb(water_gun 0)
+pico_enable_stdio_uart(water_gun 1)
 
 pico_add_extra_outputs(water_gun)

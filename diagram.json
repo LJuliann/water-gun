@@ -2,6 +2,10 @@
   "version": 1,
   "author": "RP2350 prototype (netlist KiCad)",
   "editor": "wokwi",
+  "serialMonitor": {
+    "display": "always",
+    "newline": "lf"
+  },
   "parts": [
     {
       "type": "board-pi-pico-2",
@@ -125,6 +129,8 @@
     }
   ],
   "connections": [
+    ["pico:GP0", "$serialMonitor:RX", "", []],
+    ["pico:GP1", "$serialMonitor:TX", "", []],
     [
       "pico:GP12",
       "servo1:PWM",

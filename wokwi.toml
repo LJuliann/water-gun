@@ -2,3 +2,4 @@
 version = 1
 firmware = "build/water_gun.uf2"
 elf = "build/water_gun.elf"
+gdbServerPort = 3333
