@@ -2,7 +2,33 @@
 /build/
 /build-*/
 /cmake-build-*/
+/CMakeFiles/
+/CMakeCache.txt
+/cmake_install.cmake
+/Makefile
+/build.ninja
+/.ninja_deps
+/.ninja_log
+/compile_commands.json
 /CMakeUserPresets.json
+
+# Binaires et fichiers intermédiaires
+*.o
+*.obj
+*.a
+*.elf
+*.uf2
+*.hex
+*.bin
+*.map
+*.dis
+
+# Réglages locaux de l’éditeur
+/.vscode/
+/.idea/
+*.swp
+*.swo
+*~
 
 # Configuration locale des outils
 /.agents/
