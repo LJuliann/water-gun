@@ -1,0 +1,14 @@
+# Compilation CMake / Pico
+/build/
+/build-*/
+/cmake-build-*/
+/CMakeUserPresets.json
+
+# Configuration locale des outils
+/.agents/
+/.codex/
+/.aws/
+
+# Fichiers du système
+.DS_Store
+Thumbs.db
