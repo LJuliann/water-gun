@@ -10,11 +10,22 @@
       "cacheVariables": {
         "PICO_BOARD": "pico2",
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "WATER_GUN_USE_UART_IRQ": "OFF",
+        "WATER_GUN_DEBUG": "OFF"
+      }
+    },
+    {
+      "name": "pico2-uart-irq",
+      "displayName": "Raspberry Pi Pico 2 (Debug, UART0 IRQ)",
+      "inherits": "pico2",
+      "cacheVariables": {
+        "WATER_GUN_USE_UART_IRQ": "ON"
       }
     }
   ],
   "buildPresets": [
-    { "name": "pico2", "configurePreset": "pico2" }
+    { "name": "pico2", "configurePreset": "pico2" },
+    { "name": "pico2-uart-irq", "configurePreset": "pico2-uart-irq" }
   ]
 }

@@ -1,76 +1,244 @@
-
-#include "pico/stdlib.h"
-#include "hardware/pwm.h"
+#include "FreeRTOS.h"
+#include "gun_utils.h"
 #include "hardware/clocks.h"
-#include "stdio.h"
+#include "hardware/pwm.h"
+#include "pico/stdlib.h"
+#include "queue.h"
+#include "task.h"
+#include <stdbool.h>
+#include <stdint.h>
+#include <stdio.h>
 
-// Servo parameters
-#define WRAP 19999
-#define SERVO_PIN_12 12
+// 0: Pico stdio (USB or UART). 1: UART0 with RX interrupts.
+#ifndef USE_UART_IRQ
+#define USE_UART_IRQ 0
+#endif
 
-#define SERVO_MIN_LEVEL 1000
-#define SERVO_MAX_LEVEL 2000
+#if USE_UART_IRQ
+#include "hardware/irq.h"
+#include "hardware/uart.h"
+#include "stream_buffer.h"
+#endif
 
-#define SERVO_STEP 1
-#define SERVO_DELAY_MS 20
+// V1 / Wokwi wiring. Change these four GPIOs to match the physical board.
+#define PITCH_SERVO_PIN 12
+#define YAW_SERVO_PIN 16
+#define PUMP_EN_PIN 8 // Pump enable (active high)
+#define PUMP_PH_PIN 9 // Pump direction: V1 uses PH=0.
+// Wokwi centers. Calibrate these values against the mechanical assembly.
+#define PITCH_SERVO_CENTER_DEG 90
+#define YAW_SERVO_CENTER_DEG 90
+#define SERIAL_BUFFER_SIZE 64
+
+static QueueHandle_t aim_queue;
+static QueueHandle_t shoot_queue;
 
 void init_servo(uint pin) {
-    gpio_set_function(pin, GPIO_FUNC_PWM);
+  gpio_set_function(pin, GPIO_FUNC_PWM);
+  uint slice = pwm_gpio_to_slice_num(pin);
+  uint32_t div = clock_get_hz(clk_sys) / 1000000u;
 
-    uint slice_num = pwm_gpio_to_slice_num(pin);
-
-    // Get actual system clock frequency
-    uint32_t sys_clk = clock_get_hz(clk_sys);
-
-    // 1 PWM count = 1 microsecond
-    // Divider in sixteenths; keep the calculation independent of the FPU.
-    uint32_t clkdiv16 = (sys_clk * 16u + 500000u) / 1000000u;
-    pwm_set_clkdiv_int_frac4(slice_num, clkdiv16 / 16u, clkdiv16 % 16u);
-    pwm_set_wrap(slice_num, WRAP);
-
-    // Initial position: 90 degrees
-    pwm_set_gpio_level(pin, 1500);
-
-    pwm_set_enabled(slice_num, true);
+  pwm_set_clkdiv_int_frac4(slice, div, 0);
+  pwm_set_wrap(slice, 19999);
+  pwm_set_gpio_level(pin, 1500);
+  pwm_set_enabled(slice, true);
 }
 
-// Change servo position
 void set_servo_angle(uint pin, int angle) {
-    if (angle < 0) angle = 0;
-    if (angle > 180) angle = 180;
-
-    // Rounded pulse width in microseconds, using integer arithmetic.
-    uint level = SERVO_MIN_LEVEL + ((SERVO_MAX_LEVEL - SERVO_MIN_LEVEL) * (uint)angle + 90u) / 180u;
-
-    pwm_set_gpio_level(pin, level);
+  if (angle < 0)
+    angle = 0;
+  if (angle > 180)
+    angle = 180;
+  uint level = 1000u + (1000u * (uint)angle + 90u) / 180u;
+  pwm_set_gpio_level(pin, level);
 }
 
-int main(void)
-{
-    gpio_init(PICO_DEFAULT_LED_PIN);
-    gpio_set_dir(PICO_DEFAULT_LED_PIN, GPIO_OUT);
-    gpio_put(PICO_DEFAULT_LED_PIN, 1);
-    stdio_init_all();
-    printf("Demarrage water_gun : servo sur GP12, PWM 50 Hz\n");
-    init_servo(SERVO_PIN_12);
+#if USE_UART_IRQ
+static StreamBufferHandle_t uart_rx_buffer;
+static volatile bool uart_overflow = false;
 
-    int cycle = 0;
+static void uart_rx_irq(void) {
+  BaseType_t woken = pdFALSE;
 
-    while (true) {
-        printf("Cycle %d\n", cycle++);
-
-        for (int angle = 0; angle <= 180; angle += SERVO_STEP) {
-            set_servo_angle(SERVO_PIN_12, angle);
-            gpio_put(PICO_DEFAULT_LED_PIN, (angle / 15) % 2);
-            if (angle % 30 == 0) printf("Aller : %d deg\n", angle);
-            sleep_ms(SERVO_DELAY_MS);
-        }
-
-        for (int angle = 180; angle >= 0; angle -= SERVO_STEP) {
-            set_servo_angle(SERVO_PIN_12, angle);
-            gpio_put(PICO_DEFAULT_LED_PIN, (angle / 15) % 2);
-            if (angle % 30 == 0) printf("Retour : %d deg\n", angle);
-            sleep_ms(SERVO_DELAY_MS);
-        }
+  while (uart_is_readable(uart0)) {
+    uint8_t byte = (uint8_t)uart_getc(uart0);
+    if (xStreamBufferSendFromISR(uart_rx_buffer, &byte, 1, &woken) != 1) {
+      uart_overflow = true;
     }
+  }
+  portYIELD_FROM_ISR(woken);
+}
+
+static void init_uart(void) {
+  uart_init(uart0, 115200);
+  gpio_set_function(0, GPIO_FUNC_UART); // TX
+  gpio_set_function(1, GPIO_FUNC_UART); // RX
+
+  irq_set_exclusive_handler(UART0_IRQ, uart_rx_irq);
+  irq_set_priority(UART0_IRQ, 0xC0); // Low-priority IRQ: FreeRTOS-safe.
+  irq_set_enabled(UART0_IRQ, true);
+  uart_set_irqs_enabled(uart0, true, false);
+}
+
+static size_t receive_uart(uint8_t *data, size_t size) {
+  return xStreamBufferReceive(uart_rx_buffer, data, size, portMAX_DELAY);
+}
+#else
+static size_t receive_stdio(uint8_t *data, size_t size) {
+  size_t count = 0;
+
+  while (count < size) {
+    int c = getchar_timeout_us(0);
+    if (c < 0)
+      break;
+    data[count++] = (uint8_t)c;
+  }
+
+  if (count == 0)
+    vTaskDelay(1);
+  return count;
+}
+#endif
+
+void task_serial(void *params) {
+  (void)params;
+
+#if USE_UART_IRQ
+  init_uart();
+#endif
+
+  char line[SERIAL_BUFFER_SIZE];
+  uint8_t data[32];
+  size_t index = 0;
+  bool discard = false;
+
+  while (true) {
+#if USE_UART_IRQ
+    size_t count = receive_uart(data, sizeof(data));
+    if (uart_overflow) {
+      discard = true; // Ignore a potentially corrupted command.
+      uart_overflow = false;
+    }
+#else
+    size_t count = receive_stdio(data, sizeof(data));
+#endif
+
+    for (size_t i = 0; i < count; i++) {
+      uint8_t c = data[i];
+
+      if (c == '\n' || c == '\r') {
+        if (!discard && index > 0) {
+          line[index] = '\0';
+          GunCommand command;
+          if (decode_command(line, &command)) {
+            if (command.type == CMD_AIM) {
+              xQueueOverwrite(aim_queue, &command);
+            } else if (command.type == CMD_SHOOT &&
+                       xQueueSend(shoot_queue, &command, 0) != pdTRUE) {
+#if defined(DEBUG) && DEBUG
+              printf("Shoot queue full\n");
+#endif
+            }
+          } else {
+#if defined(DEBUG) && DEBUG
+            printf("Invalid command\n");
+#endif
+          }
+        }
+#if defined(DEBUG) && DEBUG
+        if (discard) {
+          printf("Serial line discarded\n");
+        }
+#endif
+        index = 0;
+        discard = false;
+      } else if (!discard) {
+        if (c == 0 || index >= sizeof(line) - 1) {
+          discard = true;
+        } else {
+          line[index++] = (char)c;
+        }
+      }
+    }
+  }
+}
+
+void task_aim(void *params) {
+  (void)params;
+  GunCommand command;
+
+  while (true) {
+    if (xQueueReceive(aim_queue, &command, portMAX_DELAY) == pdTRUE) {
+      set_servo_angle(PITCH_SERVO_PIN, command.pitch + PITCH_SERVO_CENTER_DEG);
+      set_servo_angle(YAW_SERVO_PIN, command.yaw + YAW_SERVO_CENTER_DEG);
+#if defined(DEBUG) && DEBUG
+      printf("AIM: pitch=%d yaw=%d\n", command.pitch, command.yaw);
+#endif
+    }
+  }
+}
+
+void task_shoot(void *params) {
+  (void)params;
+  GunCommand command;
+
+  while (true) {
+    if (xQueueReceive(shoot_queue, &command, portMAX_DELAY) == pdTRUE) {
+#if defined(DEBUG) && DEBUG
+      printf("SHOOT: duration=%d ms\n", command.duration_ms);
+#endif
+      gpio_put(PUMP_PH_PIN, 0);
+      gpio_put(PUMP_EN_PIN, 1);
+      vTaskDelay(pdMS_TO_TICKS(command.duration_ms));
+      gpio_put(PUMP_EN_PIN, 0);
+#if defined(DEBUG) && DEBUG
+      printf("SHOOT: done\n");
+#endif
+    }
+  }
+}
+
+int main(void) {
+  // Hold the pump off before starting any task. PH=0 is the V1 direction.
+  gpio_init(PUMP_EN_PIN);
+  gpio_put(PUMP_EN_PIN, 0);
+  gpio_set_dir(PUMP_EN_PIN, GPIO_OUT);
+  gpio_init(PUMP_PH_PIN);
+  gpio_put(PUMP_PH_PIN, 0);
+  gpio_set_dir(PUMP_PH_PIN, GPIO_OUT);
+
+  stdio_init_all();
+  init_servo(PITCH_SERVO_PIN);
+  init_servo(YAW_SERVO_PIN);
+  set_servo_angle(PITCH_SERVO_PIN, PITCH_SERVO_CENTER_DEG);
+  set_servo_angle(YAW_SERVO_PIN, YAW_SERVO_CENTER_DEG);
+
+  aim_queue = xQueueCreate(1, sizeof(GunCommand));
+  // Keep at most one pending shot; reject new shots while this slot is full.
+  shoot_queue = xQueueCreate(1, sizeof(GunCommand));
+  if (!aim_queue || !shoot_queue)
+    while (true)
+      tight_loop_contents();
+
+#if USE_UART_IRQ
+  uart_rx_buffer = xStreamBufferCreate(128, 1);
+  if (!uart_rx_buffer)
+    while (true)
+      tight_loop_contents();
+#endif
+
+  if (xTaskCreate(task_serial, "Serial", 1024, NULL, 2, NULL) != pdPASS ||
+      xTaskCreate(task_aim, "Aim", 1024, NULL, 2, NULL) != pdPASS ||
+      xTaskCreate(task_shoot, "Shoot", 1024, NULL, 2, NULL) != pdPASS) {
+    while (true)
+      tight_loop_contents();
+  }
+
+#if defined(DEBUG) && DEBUG
+  printf("Ready: serial -> aim/shoot (%s)\n",
+         USE_UART_IRQ ? "UART0 IRQ" : "stdio");
+#endif
+  vTaskStartScheduler();
+  while (true)
+    tight_loop_contents();
 }

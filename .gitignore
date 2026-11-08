@@ -1,5 +1,6 @@
 # Compilation CMake / Pico
 /.tools/
+/.cache/clangd/
 /build/
 /build-*/
 /cmake-build-*/
@@ -12,6 +13,11 @@
 /.ninja_log
 /compile_commands.json
 /CMakeUserPresets.json
+
+# Documentation générée par Doxygen
+/docs/doxygen/
+/html/
+/latex/
 
 # Binaires et fichiers intermédiaires
 *.o
