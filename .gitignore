@@ -13,6 +13,7 @@
 /.ninja_log
 /compile_commands.json
 /CMakeUserPresets.json
+/dist/
 
 # Documentation générée par Doxygen
 /docs/doxygen/

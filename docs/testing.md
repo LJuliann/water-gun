@@ -66,10 +66,11 @@ montrés dans ce guide. Tous sont protégés par `#if defined(DEBUG) && DEBUG`.
 essai, utiliser `cmake --build build` après la configuration explicite ci-dessus.
 `task_serial` décode et distribue les commandes. La queue de `task_aim` contient
 un seul élément : `xQueueOverwrite` remplace toute position encore en attente par
-la plus récente. La queue de `task_shoot` conserve un seul tir en attente pendant
-qu'un autre s'exécute. Si cette place est occupée, les nouveaux tirs sont rejetés :
-ils ne remplacent pas le tir en attente. Avec les traces activées, le message est
-`Shoot queue full`. Un tir en cours et un tir en attente peuvent donc se suivre.
+la plus récente. La queue de `task_shoot` sert uniquement à transmettre un tir
+accepté. Dès l'acceptation et jusqu'à la fin du traitement, toutes les autres
+demandes SHOOT sont rejetées, même si la queue est déjà vide. Avec les traces
+activées, le message est `SHOOT: busy`. Aucun tir n'est conservé pour plus tard.
+Une nouvelle demande peut être acceptée après la fin du précédent tir.
 
 ## GPIO et contrôle des actionneurs
 
@@ -101,11 +102,30 @@ La pompe démarre désactivée. Chaque tir maintient PH à 0, active EN pendant 
 durée demandée, puis remet EN à 0. Dans Wokwi, `sig1` indique cette activation ;
 `sig2` reste éteinte. GP14, GP10/GP11 et le moteur pas à pas ne sont pas commandés.
 
+Avant d'activer EN, `task_shoot` arme une alarme du Pico SDK pour la durée du tir.
+Son callback `pump_cutoff` remet directement EN à 0 depuis une interruption,
+indépendamment du réveil de la tâche FreeRTOS. Si la durée est hors de 500–2000 ms
+ou si l'alarme ne peut pas être armée, la pompe reste arrêtée. Le chemin normal
+remet aussi EN à 0 et annule l'alarme avant d'accepter un nouveau tir.
+
+Cette protection ne nécessite aucune nouvelle commande ROS2. Elle borne la durée
+du tir sans attendre d'autres données ; elle ne détecte pas une déconnexion et
+n'arrête pas immédiatement un tir lors de celle-ci. La coupure dépend encore du
+timer et de son interruption : elle ne couvre pas un blocage global avec les
+interruptions désactivées. Pour les essais physiques, une entrée EN maintenue à
+l'arrêt pendant un reset et une coupure matérielle adaptée restent à prévoir.
+Voir le [contrat des alarmes du Pico SDK](https://www.raspberrypi.com/documentation/pico-sdk/high_level.html#group_alarm).
+
 Pour vérifier l'indépendance des tâches, envoyer `<shoot2000>`, puis envoyer
 `<pitch25;yaw90>` avant l'apparition de `SHOOT: done`. Les servos doivent changer
 de position alors que la LED verte de la pompe est encore allumée. La tâche de tir
 attend avec `vTaskDelay`, ce qui laisse la réception et la visée s'exécuter.
-Un autre tir reçu pendant cette attente est conservé dans la queue de tir.
+Envoyer aussi `<shoot500>` pendant ce tir : la réponse doit être `SHOOT: busy`
+et la LED ne doit pas se rallumer automatiquement après les deux secondes.
+Une fois `SHOOT: done` affiché, renvoyer `<shoot500>` : il doit être accepté.
+
+Ne pas utiliser un arrêt GDB comme preuve de la coupure de sécurité : si le
+débogueur arrête le cœur, le callback d'interruption ne peut plus s'exécuter.
 
 Pour vérifier la dernière position en attente, coller plusieurs commandes AIM
 séparées par des fins de ligne. La position finale doit correspondre à la dernière

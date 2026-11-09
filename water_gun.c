@@ -2,7 +2,9 @@
 #include "gun_utils.h"
 #include "hardware/clocks.h"
 #include "hardware/pwm.h"
+#include "hardware/sync.h"
 #include "pico/stdlib.h"
+#include "pico/time.h"
 #include "queue.h"
 #include "task.h"
 #include <stdbool.h>
@@ -32,6 +34,8 @@
 
 static QueueHandle_t aim_queue;
 static QueueHandle_t shoot_queue;
+// Protected by task critical sections; includes an accepted but not yet started shot.
+static bool shoot_busy;
 
 void init_servo(uint pin) {
   gpio_set_function(pin, GPIO_FUNC_PWM);
@@ -133,10 +137,19 @@ void task_serial(void *params) {
           if (decode_command(line, &command)) {
             if (command.type == CMD_AIM) {
               xQueueOverwrite(aim_queue, &command);
-            } else if (command.type == CMD_SHOOT &&
-                       xQueueSend(shoot_queue, &command, 0) != pdTRUE) {
+            } else if (command.type == CMD_SHOOT) {
+              BaseType_t accepted = pdFALSE;
+              taskENTER_CRITICAL();
+              if (!shoot_busy) {
+                shoot_busy = true;
+                accepted = xQueueSend(shoot_queue, &command, 0);
+                if (accepted != pdTRUE)
+                  shoot_busy = false;
+              }
+              taskEXIT_CRITICAL();
 #if defined(DEBUG) && DEBUG
-              printf("Shoot queue full\n");
+              if (accepted != pdTRUE)
+                printf("SHOOT: busy\n");
 #endif
             }
           } else {
@@ -178,21 +191,46 @@ void task_aim(void *params) {
   }
 }
 
+static int64_t pump_cutoff(alarm_id_t id, void *user_data) {
+  (void)id;
+  (void)user_data;
+  gpio_put(PUMP_EN_PIN, 0);
+  return 0;
+}
+
 void task_shoot(void *params) {
   (void)params;
   GunCommand command;
 
   while (true) {
     if (xQueueReceive(shoot_queue, &command, portMAX_DELAY) == pdTRUE) {
+      alarm_id_t cutoff = -1;
+      if (command.duration_ms >= 500 && command.duration_ms <= 2000) {
+        // Arm the IRQ cutoff before enabling the pump. An expired/failed alarm
+        // must never be followed by an unprotected pump start.
+        uint32_t irq_state = save_and_disable_interrupts();
+        cutoff = add_alarm_in_ms(command.duration_ms, pump_cutoff, NULL, false);
+        if (cutoff > 0) {
+          gpio_put(PUMP_PH_PIN, 0);
+          gpio_put(PUMP_EN_PIN, 1);
+        }
+        restore_interrupts(irq_state);
+      }
+
+      if (cutoff > 0) {
 #if defined(DEBUG) && DEBUG
-      printf("SHOOT: duration=%d ms\n", command.duration_ms);
+        printf("SHOOT: duration=%d ms\n", command.duration_ms);
 #endif
-      gpio_put(PUMP_PH_PIN, 0);
-      gpio_put(PUMP_EN_PIN, 1);
-      vTaskDelay(pdMS_TO_TICKS(command.duration_ms));
+        vTaskDelay(pdMS_TO_TICKS(command.duration_ms));
+      }
       gpio_put(PUMP_EN_PIN, 0);
+      if (cutoff > 0)
+        cancel_alarm(cutoff);
+      taskENTER_CRITICAL();
+      shoot_busy = false;
+      taskEXIT_CRITICAL();
 #if defined(DEBUG) && DEBUG
-      printf("SHOOT: done\n");
+      printf("SHOOT: %s\n", cutoff > 0 ? "done" : "refused (duration/cutoff)");
 #endif
     }
   }
@@ -214,7 +252,7 @@ int main(void) {
   set_servo_angle(YAW_SERVO_PIN, YAW_SERVO_CENTER_DEG);
 
   aim_queue = xQueueCreate(1, sizeof(GunCommand));
-  // Keep at most one pending shot; reject new shots while this slot is full.
+  // Handoff only: shoot_busy rejects further requests until this shot finishes.
   shoot_queue = xQueueCreate(1, sizeof(GunCommand));
   if (!aim_queue || !shoot_queue)
     while (true)

@@ -51,7 +51,12 @@ if [[ "$(git -C "$tools_dir/pico-sdk" rev-parse HEAD)" != "$sdk_commit" ]]; then
     exit 1
 fi
 git -C "$tools_dir/pico-sdk" submodule update --init --recursive --depth 1
-git -C "$project_dir" submodule update --init --recursive -- FreeRTOS-Kernel
+if [[ -e "$project_dir/.git" ]]; then
+    git -C "$project_dir" submodule update --init --recursive -- FreeRTOS-Kernel
+elif [[ ! -f "$project_dir/FreeRTOS-Kernel/include/FreeRTOS.h" ]]; then
+    echo "FreeRTOS-Kernel manque : utiliser le ZIP complet ou cloner le dépôt avec ses sous-modules." >&2
+    exit 1
+fi
 
 "$tools_dir/arm-toolchain/bin/arm-none-eabi-gcc" --version
 "$tools_dir/picotool/picotool" version
