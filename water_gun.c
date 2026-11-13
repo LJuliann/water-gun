@@ -28,8 +28,9 @@
 #define YAW_SERVO_PIN 12
 #define PUMP_EN_PIN 8 // Pump enable (active high)
 #define PUMP_PH_PIN 9 // Pump direction: V1 uses PH=0.
-// Wokwi centers. Calibrate these values against the mechanical assembly.
-#define PITCH_SERVO_CENTER_DEG 90
+// Servo angles for a level barrel pointing forward (pitch measured on the
+// drone: level at <pitch13;yaw0> with a 90 deg center, hence 90 - 13).
+#define PITCH_SERVO_CENTER_DEG 77
 #define YAW_SERVO_CENTER_DEG 90
 // Servo direction (+1 or -1) so the commands follow the drone frame used by
 // the Jetson (ROS REP-103): positive pitch raises the barrel, positive yaw
