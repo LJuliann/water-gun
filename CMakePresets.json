@@ -22,10 +22,21 @@
       "cacheVariables": {
         "WATER_GUN_USE_UART_IRQ": "ON"
       }
+    },
+    {
+      "name": "pico-usb",
+      "displayName": "Raspberry Pi Pico (RP2040, USB CDC)",
+      "inherits": "pico2",
+      "binaryDir": "${sourceDir}/build-pico",
+      "cacheVariables": {
+        "PICO_BOARD": "pico",
+        "WATER_GUN_STDIO_USB": "ON"
+      }
     }
   ],
   "buildPresets": [
     { "name": "pico2", "configurePreset": "pico2" },
-    { "name": "pico2-uart-irq", "configurePreset": "pico2-uart-irq" }
+    { "name": "pico2-uart-irq", "configurePreset": "pico2-uart-irq" },
+    { "name": "pico-usb", "configurePreset": "pico-usb" }
   ]
 }

@@ -13,7 +13,7 @@ if (EXISTS ${picoVscode} AND NOT PICO_SDK_PATH AND NOT DEFINED ENV{PICO_SDK_PATH
 endif()
 # ====================================================================================
 cmake_minimum_required(VERSION 3.21)
-# Configuration initiale pour le RP2350
+# Carte par défaut : Pico 2 (RP2350). Le preset pico-usb choisit la Pico 1 (RP2040).
 set(PICO_BOARD pico2 CACHE STRING "Board type")
 
 # Utiliser le SDK local si aucun chemin explicite n'est fourni.
@@ -44,14 +44,21 @@ LANGUAGES C CXX ASM
 
 pico_sdk_init()
 
-# FreeRTOS pour le RP2350 ARM
+# FreeRTOS : port choisi selon la puce de la carte.
 set(FREERTOS_KERNEL_PATH
     "${CMAKE_CURRENT_LIST_DIR}/FreeRTOS-Kernel"
 )
 set(FREERTOS_CONFIG_FILE_DIRECTORY "${CMAKE_CURRENT_LIST_DIR}")
 
+if(PICO_PLATFORM STREQUAL "rp2040")
+    set(FREERTOS_PORT RP2040)
+elseif(PICO_PLATFORM STREQUAL "rp2350-arm-s")
+    set(FREERTOS_PORT RP2350_ARM_NTZ)
+else()
+    message(FATAL_ERROR "Plateforme non prise en charge : ${PICO_PLATFORM}")
+endif()
 include(
-    "${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/RP2350_ARM_NTZ/FreeRTOS_Kernel_import.cmake"
+    "${FREERTOS_KERNEL_PATH}/portable/ThirdParty/GCC/${FREERTOS_PORT}/FreeRTOS_Kernel_import.cmake"
 )
 
 add_executable(water_gun
@@ -61,6 +68,10 @@ add_executable(water_gun
 
 option(WATER_GUN_USE_UART_IRQ "Receive commands using UART0 RX interrupts" OFF)
 option(WATER_GUN_DEBUG "Enable firmware diagnostic prints" OFF)
+option(WATER_GUN_STDIO_USB "Receive commands over USB CDC instead of UART0" OFF)
+if(WATER_GUN_STDIO_USB AND WATER_GUN_USE_UART_IRQ)
+    message(FATAL_ERROR "WATER_GUN_STDIO_USB et WATER_GUN_USE_UART_IRQ sont incompatibles")
+endif()
 target_compile_definitions(water_gun PRIVATE
     DEBUG=$<BOOL:${WATER_GUN_DEBUG}>
     USE_UART_IRQ=$<BOOL:${WATER_GUN_USE_UART_IRQ}>
@@ -80,9 +91,14 @@ if(WATER_GUN_USE_UART_IRQ)
     target_link_libraries(water_gun hardware_uart hardware_irq)
 endif()
 
-# UART0 sur GP0/GP1 pour le moniteur série Wokwi.
-pico_enable_stdio_usb(water_gun 0)
-pico_enable_stdio_uart(water_gun 1)
+# USB CDC (/dev/ttyACM0 côté Jetson) ou UART0 sur GP0/GP1 (moniteur série Wokwi).
+if(WATER_GUN_STDIO_USB)
+    pico_enable_stdio_usb(water_gun 1)
+    pico_enable_stdio_uart(water_gun 0)
+else()
+    pico_enable_stdio_usb(water_gun 0)
+    pico_enable_stdio_uart(water_gun 1)
+endif()
 
 pico_add_extra_outputs(water_gun)
 
