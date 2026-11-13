@@ -23,8 +23,9 @@
 #endif
 
 // V1 / Wokwi wiring. Change these four GPIOs to match the physical board.
-#define PITCH_SERVO_PIN 12
-#define YAW_SERVO_PIN 16
+// Drone gun: pitch servo on GP16, yaw servo on GP12 (verified on the assembly).
+#define PITCH_SERVO_PIN 16
+#define YAW_SERVO_PIN 12
 #define PUMP_EN_PIN 8 // Pump enable (active high)
 #define PUMP_PH_PIN 9 // Pump direction: V1 uses PH=0.
 // Wokwi centers. Calibrate these values against the mechanical assembly.

@@ -38,4 +38,4 @@ Résultat : `build/water_gun.uf2` et `build/water_gun.elf`. `Debug` conserve les
 
 Communication UART0 à **115200 bauds**, **GP0 TX / GP1 RX** ; le stdio USB est désactivé.
 Exception : `pico-usb` reçoit les commandes par l'USB (port série `/dev/ttyACM0` sur le Jetson) et n'utilise pas l'UART.
-GPIO : pitch **12**, yaw **16**, pompe EN **8** / PH **9**. GPIO et centres réglables dans `water_gun.c` ; calibrer le montage avant utilisation réelle.
+GPIO : pitch **16**, yaw **12**, pompe EN **8** / PH **9**. GPIO et centres réglables dans `water_gun.c` ; calibrer le montage avant utilisation réelle.

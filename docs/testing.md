@@ -80,8 +80,8 @@ V1 indiqué et les connexions présentes dans `diagram.json` :
 
 | Fonction | Constante | GPIO | Élément Wokwi |
 | --- | --- | --- | --- |
-| Servo pitch | `PITCH_SERVO_PIN` | GP12 | `servo1` |
-| Servo yaw | `YAW_SERVO_PIN` | GP16 | `servo3` |
+| Servo pitch | `PITCH_SERVO_PIN` | GP16 | `servo3` |
+| Servo yaw | `YAW_SERVO_PIN` | GP12 | `servo1` |
 | Pompe, activation | `PUMP_EN_PIN` | GP8 | LED verte `sig1`, U2 EN/IN1 |
 | Pompe, direction | `PUMP_PH_PIN` | GP9 | LED jaune `sig2`, U2 PH/IN2 |
 
