@@ -40,13 +40,15 @@ Garder l'onglet du simulateur visible et la simulation en cours pendant l'essai.
 
 | Saisie dans le moniteur | Réponse attendue |
 | --- | --- |
-| `<pitch10;yaw-20>` | `AIM: pitch=10 yaw=-20` |
-| `<pitch-90;yaw90>` | `AIM: pitch=-90 yaw=90` |
+| `<pitch10;yaw-20>` | `AIM: pitch=100 yaw=-200 (0.1 deg)` |
+| `<pitch13.4;yaw-7.6>` | `AIM: pitch=134 yaw=-76 (0.1 deg)` |
+| `<pitch-90;yaw90>` | `AIM: pitch=-900 yaw=900 (0.1 deg)` |
 | `<shoot500>` | `SHOOT: duration=500 ms`, puis `SHOOT: done` |
 | `<shoot750>` | `SHOOT: duration=750 ms`, puis `SHOOT: done` |
 | `<shoot2000>` | `SHOOT: duration=2000 ms`, puis `SHOOT: done` |
 | `<shoot3000>` | `Invalid command` |
-| `<pitch26;yaw0>` | `Invalid command` |
+| `<pitch55.1;yaw0>` | `Invalid command` |
+| `<pitch13.45;yaw0>` | `Invalid command` |
 | `<shoot750>extra` | `Invalid command` |
 
 Pour vérifier la récupération après saturation, envoyer une ligne contenant au
@@ -96,6 +98,11 @@ gauche du drone, vu de derrière le canon. Sur le drone, les deux valent −1 :
 `<pitch0;yaw0>` donne 77° (pitch) et 90° (yaw), et `<pitch10;yaw-20>` donne
 respectivement 67° et 110°. La calibration PWM reste celle du projet
 (1000–2000 µs).
+
+Les angles acceptent un dixième de degré (`<pitch13.4;yaw-7.6>`) ; les degrés
+entiers restent valides. Ils sont conservés en dixièmes jusqu'au PWM, dont le pas
+de 1 µs vaut 0,18° : un pas de 1° (environ 5 cm à 3 m) faisait sauter la visée.
+Limites : pitch de −90 à 55° (butée haute mesurée sur le drone), yaw ±90°.
 
 La V1 `gun_a_eau.c` utilise des offsets pitch −60° et yaw +70°, mais reçoit des
 angles de 0 à 180°, contrairement au protocole signé actuel. Ces offsets ne sont

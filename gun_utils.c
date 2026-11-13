@@ -52,32 +52,43 @@ bool parse_integer(const char *text, int *value) {
   return true;
 }
 
-bool parse_until(const char **cursor, char delimiter, int *value) {
-  if (cursor == NULL || *cursor == NULL || value == NULL) {
-    return false;
-  }
-
-  char buffer[16];
+// Copies the token before `delimiter` into `buffer` and returns a pointer
+// past the delimiter, or NULL if the delimiter is missing, the token is empty
+// or does not fit.
+static const char *extract_until(const char *current, char delimiter,
+                                 char *buffer, size_t size) {
   size_t index = 0;
-  const char *current = *cursor;
 
   // Read characters until delimiter
   while (*current != delimiter && *current != '\0') {
-    if (index >= sizeof(buffer) - 1) {
-      return false;
+    if (index >= size - 1) {
+      return NULL;
     }
 
     buffer[index++] = *current;
     current++;
   }
 
-  // Check for missing delimiter or empty number
+  // Check for missing delimiter or empty token
   if (*current != delimiter || index == 0) {
-    return false;
+    return NULL;
   }
 
   // Terminate string
   buffer[index] = '\0';
+  return current + 1;
+}
+
+bool parse_until(const char **cursor, char delimiter, int *value) {
+  if (cursor == NULL || *cursor == NULL || value == NULL) {
+    return false;
+  }
+
+  char buffer[16];
+  const char *next = extract_until(*cursor, delimiter, buffer, sizeof(buffer));
+  if (next == NULL) {
+    return false;
+  }
 
   // Convert using our existing parser
   int result;
@@ -87,7 +98,73 @@ bool parse_until(const char **cursor, char delimiter, int *value) {
 
   // Save result and advance cursor
   *value = result;
-  *cursor = current + 1;
+  *cursor = next;
+
+  return true;
+}
+
+bool parse_tenths(const char *text, int *tenths) {
+  if (text == NULL || tenths == NULL) {
+    return false;
+  }
+
+  int sign = 1;
+  if (*text == '-') {
+    sign = -1;
+    text++;
+  }
+
+  // Integer part: 1 to 4 digits (no overflow possible)
+  int value = 0;
+  int digits = 0;
+  while (*text >= '0' && *text <= '9') {
+    if (++digits > 4) {
+      return false;
+    }
+    value = value * 10 + (*text - '0');
+    text++;
+  }
+  if (digits == 0) {
+    return false;
+  }
+  value *= 10;
+
+  // Optional single decimal digit
+  if (*text == '.') {
+    text++;
+    if (*text < '0' || *text > '9') {
+      return false;
+    }
+    value += *text - '0';
+    text++;
+  }
+
+  if (*text != '\0') {
+    return false;
+  }
+
+  *tenths = sign * value;
+  return true;
+}
+
+bool parse_tenths_until(const char **cursor, char delimiter, int *tenths) {
+  if (cursor == NULL || *cursor == NULL || tenths == NULL) {
+    return false;
+  }
+
+  char buffer[16];
+  const char *next = extract_until(*cursor, delimiter, buffer, sizeof(buffer));
+  if (next == NULL) {
+    return false;
+  }
+
+  int result;
+  if (!parse_tenths(buffer, &result)) {
+    return false;
+  }
+
+  *tenths = result;
+  *cursor = next;
 
   return true;
 }
@@ -116,8 +193,8 @@ bool decode_command(const char *input, GunCommand *cmd) {
   // Decode command parameters
   if (temp.type == CMD_AIM) {
 
-    // Extract pitch
-    if (!parse_until(&cursor, ';', &temp.pitch)) {
+    // Extract pitch (degrees, at most one decimal)
+    if (!parse_tenths_until(&cursor, ';', &temp.pitch_tenths)) {
       return false;
     }
 
@@ -127,14 +204,15 @@ bool decode_command(const char *input, GunCommand *cmd) {
     }
     cursor += 3;
 
-    // Extract yaw
-    if (!parse_until(&cursor, '>', &temp.yaw)) {
+    // Extract yaw (degrees, at most one decimal)
+    if (!parse_tenths_until(&cursor, '>', &temp.yaw_tenths)) {
       return false;
     }
 
     // Validate angle limits
-    if (temp.pitch < -90 || temp.pitch > 25 || temp.yaw < -90 ||
-        temp.yaw > 90) {
+    if (temp.pitch_tenths < PITCH_MIN_TENTHS ||
+        temp.pitch_tenths > PITCH_MAX_TENTHS ||
+        temp.yaw_tenths < YAW_MIN_TENTHS || temp.yaw_tenths > YAW_MAX_TENTHS) {
       return false;
     }
 

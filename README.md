@@ -34,7 +34,7 @@ Résultat : `build/water_gun.uf2` et `build/water_gun.elf`. `Debug` conserve les
 
 - **Carte** : maintenir BOOTSEL au branchement USB, puis copier le UF2 choisi sur le volume de la Pico 2.
 - **Wokwi** : lancer **Wokwi: Start Simulator**. Le ZIP fournit déjà `build/` avec la version UART IRQ de test. Après compilation, redémarrer la simulation.
-- **Commandes** : dans **Wokwi Terminal**, envoyer `<pitch10;yaw-20>` ou `<shoot750>`, puis Entrée. La saisie n'est pas affichée.
+- **Commandes** : dans **Wokwi Terminal**, envoyer `<pitch10;yaw-20>`, `<pitch13.4;yaw-7.6>` (dixièmes de degré) ou `<shoot750>`, puis Entrée. La saisie n'est pas affichée.
 
 Communication UART0 à **115200 bauds**, **GP0 TX / GP1 RX** ; le stdio USB est désactivé.
 Exception : `pico-usb` reçoit les commandes par l'USB (port série `/dev/ttyACM0` sur le Jetson) et n'utilise pas l'UART.

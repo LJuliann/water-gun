@@ -13,6 +13,6 @@ if(CMAKE_C_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(gun_utils_tests PRIVATE -Wall -Wextra -Werror)
 endif()
 
-foreach(suite IN ITEMS integer delimiter command)
+foreach(suite IN ITEMS integer delimiter tenths command)
     add_test(NAME gun_utils.${suite} COMMAND gun_utils_tests ${suite})
 endforeach()

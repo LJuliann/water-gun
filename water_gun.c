@@ -55,12 +55,14 @@ void init_servo(uint pin) {
   pwm_set_enabled(slice, true);
 }
 
-void set_servo_angle(uint pin, int angle) {
-  if (angle < 0)
-    angle = 0;
-  if (angle > 180)
-    angle = 180;
-  uint level = 1000u + (1000u * (uint)angle + 90u) / 180u;
+// Servo angle in tenths of a degree (0-1800 -> 1000-2000 us). The PWM counts
+// in 1 us steps, i.e. 0.18 deg: tenths of a degree are not lost.
+void set_servo_angle_tenths(uint pin, int tenths) {
+  if (tenths < 0)
+    tenths = 0;
+  if (tenths > 1800)
+    tenths = 1800;
+  uint level = 1000u + (1000u * (uint)tenths + 900u) / 1800u;
   pwm_set_gpio_level(pin, level);
 }
 
@@ -189,12 +191,15 @@ void task_aim(void *params) {
 
   while (true) {
     if (xQueueReceive(aim_queue, &command, portMAX_DELAY) == pdTRUE) {
-      set_servo_angle(PITCH_SERVO_PIN, PITCH_SERVO_CENTER_DEG +
-                                           PITCH_SERVO_DIRECTION * command.pitch);
-      set_servo_angle(YAW_SERVO_PIN,
-                      YAW_SERVO_CENTER_DEG + YAW_SERVO_DIRECTION * command.yaw);
+      set_servo_angle_tenths(PITCH_SERVO_PIN,
+                             PITCH_SERVO_CENTER_DEG * 10 +
+                                 PITCH_SERVO_DIRECTION * command.pitch_tenths);
+      set_servo_angle_tenths(YAW_SERVO_PIN,
+                             YAW_SERVO_CENTER_DEG * 10 +
+                                 YAW_SERVO_DIRECTION * command.yaw_tenths);
 #if defined(DEBUG) && DEBUG
-      printf("AIM: pitch=%d yaw=%d\n", command.pitch, command.yaw);
+      printf("AIM: pitch=%d yaw=%d (0.1 deg)\n", command.pitch_tenths,
+             command.yaw_tenths);
 #endif
     }
   }
@@ -257,8 +262,8 @@ int main(void) {
   stdio_init_all();
   init_servo(PITCH_SERVO_PIN);
   init_servo(YAW_SERVO_PIN);
-  set_servo_angle(PITCH_SERVO_PIN, PITCH_SERVO_CENTER_DEG);
-  set_servo_angle(YAW_SERVO_PIN, YAW_SERVO_CENTER_DEG);
+  set_servo_angle_tenths(PITCH_SERVO_PIN, PITCH_SERVO_CENTER_DEG * 10);
+  set_servo_angle_tenths(YAW_SERVO_PIN, YAW_SERVO_CENTER_DEG * 10);
 
   aim_queue = xQueueCreate(1, sizeof(GunCommand));
   // Handoff only: shoot_busy rejects further requests until this shot finishes.
