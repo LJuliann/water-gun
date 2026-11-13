@@ -87,9 +87,13 @@ V1 indiqué et les connexions présentes dans `diagram.json` :
 
 Les constantes `PITCH_SERVO_CENTER_DEG` et `YAW_SERVO_CENTER_DEG` définissent les
 centres, au démarrage et dans la conversion des commandes. Leur valeur par défaut
-reste 90° pour Wokwi : `<pitch0;yaw0>` donne 90° aux deux servos et
-`<pitch10;yaw-20>` donne respectivement 100° et 70°. La calibration PWM reste celle
-du projet (1000–2000 µs).
+reste 90° pour Wokwi. `PITCH_SERVO_DIRECTION` et `YAW_SERVO_DIRECTION` (+1 ou −1)
+alignent le sens des servos sur le repère du drone utilisé par le Jetson
+(REP-103) : pitch positif = le canon monte, yaw positif = il tourne vers la
+gauche du drone, vu de derrière le canon. Sur le drone, les deux valent −1 :
+`<pitch0;yaw0>` donne 90° aux deux servos et `<pitch10;yaw-20>` donne
+respectivement 80° et 110°. La calibration PWM reste celle du projet
+(1000–2000 µs).
 
 La V1 `gun_a_eau.c` utilise des offsets pitch −60° et yaw +70°, mais reçoit des
 angles de 0 à 180°, contrairement au protocole signé actuel. Ces offsets ne sont

@@ -31,6 +31,11 @@
 // Wokwi centers. Calibrate these values against the mechanical assembly.
 #define PITCH_SERVO_CENTER_DEG 90
 #define YAW_SERVO_CENTER_DEG 90
+// Servo direction (+1 or -1) so the commands follow the drone frame used by
+// the Jetson (ROS REP-103): positive pitch raises the barrel, positive yaw
+// turns it to the drone's left. Both servos turn the other way on the drone.
+#define PITCH_SERVO_DIRECTION (-1)
+#define YAW_SERVO_DIRECTION (-1)
 #define SERIAL_BUFFER_SIZE 64
 
 static QueueHandle_t aim_queue;
@@ -183,8 +188,10 @@ void task_aim(void *params) {
 
   while (true) {
     if (xQueueReceive(aim_queue, &command, portMAX_DELAY) == pdTRUE) {
-      set_servo_angle(PITCH_SERVO_PIN, command.pitch + PITCH_SERVO_CENTER_DEG);
-      set_servo_angle(YAW_SERVO_PIN, command.yaw + YAW_SERVO_CENTER_DEG);
+      set_servo_angle(PITCH_SERVO_PIN, PITCH_SERVO_CENTER_DEG +
+                                           PITCH_SERVO_DIRECTION * command.pitch);
+      set_servo_angle(YAW_SERVO_PIN,
+                      YAW_SERVO_CENTER_DEG + YAW_SERVO_DIRECTION * command.yaw);
 #if defined(DEBUG) && DEBUG
       printf("AIM: pitch=%d yaw=%d\n", command.pitch, command.yaw);
 #endif
