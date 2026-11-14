@@ -68,7 +68,7 @@ static void test_tenths(void) {
     const char *input;
     int expected;
   } valid[] = {{"0", 0},       {"-0", 0},     {"13", 130},  {"13.4", 134},
-               {"-7.6", -76},  {"-0.5", -5},  {"0.0", 0},   {"55", 550},
+               {"-7.6", -76},  {"-0.5", -5},  {"0.0", 0},   {"75", 750},
                {"9999.9", 99999}};
 
   for (size_t i = 0; i < sizeof(valid) / sizeof(valid[0]); ++i) {
@@ -113,7 +113,7 @@ static void test_command(void) {
       {"<pitch10;yaw-20>", {CMD_AIM, 100, -200, 0}},
       {"<pitch-90;yaw-90>", {CMD_AIM, -900, -900, 0}},
       {"<pitch25;yaw90>", {CMD_AIM, 250, 900, 0}},
-      {"<pitch55;yaw90>", {CMD_AIM, 550, 900, 0}},
+      {"<pitch75;yaw90>", {CMD_AIM, 750, 900, 0}},
       {"<pitch0;yaw0>", {CMD_AIM, 0, 0, 0}},
       {"<pitch13.4;yaw-7.6>", {CMD_AIM, 134, -76, 0}},
       {"<pitch-0.5;yaw0.0>", {CMD_AIM, -5, 0, 0}},
@@ -138,7 +138,7 @@ static void test_command(void) {
 
   const char *invalid[] = {
       NULL, "", "\n", "<shoot499>", "<shoot2001>\n", "<shoot3000>",
-      "<pitch-91;yaw0>", "<pitch55.1;yaw0>\r\n", "<pitch0;yaw-91>",
+      "<pitch-91;yaw0>", "<pitch75.1;yaw0>\r\n", "<pitch0;yaw-91>",
       "<pitch0;yaw91>", "<pitch-90.1;yaw0>", "<pitch0;yaw90.1>",
       "<pitch13.45;yaw0>", "<pitch13.;yaw0>", "<pitch1,5;yaw0>", "<shoot>", "<pitch10;yaw>", "<pitch10;roll20>",
       "<shoot750", "<shoot750 >", "<shoot750\n>", "<shoot750>extra",

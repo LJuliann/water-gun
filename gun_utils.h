@@ -6,9 +6,9 @@
 typedef enum { CMD_AIM, CMD_SHOOT } CommandType;
 
 // Aiming limits in tenths of a degree (drone frame: pitch+ up, yaw+ left).
-// The upper pitch stop was measured on the drone.
+// Upper pitch limit: 75 deg, set to aim higher; the servo itself stops at 77.
 #define PITCH_MIN_TENTHS (-900)
-#define PITCH_MAX_TENTHS 550
+#define PITCH_MAX_TENTHS 750
 #define YAW_MIN_TENTHS (-900)
 #define YAW_MAX_TENTHS 900
 
